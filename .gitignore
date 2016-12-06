@@ -12,6 +12,7 @@ jsconfig.json
 # Folders
 _obj
 _test
+bin/
 
 # Architecture specific extensions/prefixes
 *.[568vq]
