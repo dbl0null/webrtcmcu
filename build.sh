@@ -1,2 +1,2 @@
 #!/bin/sh  
-go build -o bin/ServiceMain.exe src/ServiceMain.go
+go build -o bin/servicemain.exe src/servicemain.go
