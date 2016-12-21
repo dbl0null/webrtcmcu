@@ -30,7 +30,7 @@ var upgrader = websocket.Upgrader{
 }
 
 type WebrtcMessage struct {
-	Type, bbb string
+	Type, Sdp string
 }
 
 // PeerGhost 伪装成Browser的PeerConnection对端
@@ -46,7 +46,7 @@ type PeerGhost struct {
 func (ghost *PeerGhost) peerMsgHandler(jsonMessage []byte) {
 	var msg WebrtcMessage
 	json.Unmarshal(jsonMessage, &msg)
-	log.Println("peerMsgHandler()", msg.Type)
+	log.Println("peerMsgHandler()", msg.Sdp)
 }
 
 //从头Browser->WSClient通道读数据

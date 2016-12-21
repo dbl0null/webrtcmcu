@@ -1,0 +1,6 @@
+package signaling
+
+const (
+	ghostsdp = `
+    `
+)
