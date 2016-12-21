@@ -30,7 +30,8 @@ var upgrader = websocket.Upgrader{
 }
 
 type WebrtcMessage struct {
-	Type, Sdp string
+	Type string `json:"type"`
+	Sdp  string `json:"sdp"`
 }
 
 // PeerGhost 伪装成Browser的PeerConnection对端
@@ -46,7 +47,22 @@ type PeerGhost struct {
 func (ghost *PeerGhost) peerMsgHandler(jsonMessage []byte) {
 	var msg WebrtcMessage
 	json.Unmarshal(jsonMessage, &msg)
-	log.Println("peerMsgHandler()", msg.Sdp)
+
+	switch msg.Type {
+	case "offer":
+		msg.Type = "answer"
+		msg.Sdp = ghostAnswerSdp
+		jsonBytes, jsonErr := json.Marshal(msg)
+		if jsonErr != nil {
+			log.Printf("peerMsgHandler()| Can't create anser msg. %v", jsonErr)
+		} else {
+			ghost.send <- jsonBytes
+		}
+	case "candidate":
+		log.Println("peerMsgHandler()| receive candidate:", msg)
+	default:
+		log.Println("peerMsgHandler()| Unknown msgtype:", msg.Type)
+	}
 }
 
 //从头Browser->WSClient通道读数据
