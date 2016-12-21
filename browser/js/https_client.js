@@ -13,31 +13,19 @@
  * 8、开始音视频通话
  * * 注意：这里私底下就是STUN过程和TURN过程，用wireshark抓包可以看到细节
  */
+var localStreamReady = false;
+var doOfferAlready = false
 
-var isInitiator = false;//用来标识发起者
-var isChannelReady = false;//用来标识两个人都已经进了同一间屋子
-var isStarted = false;
 var localStream;
 var pc;
 var remoteStream;
 
+//只需要跨网直连模式
 var wantHostMode      = false;
-var wantReflexiveMode = false;
-var wantRelayMode     = true;
+var wantReflexiveMode = true;
+var wantRelayMode     = false;
 
-var pcConfig = {}; //客户端不可见由后台下发
-/*
-{
-  'iceServers': [
-    {
-      'url': 'turn:119.29.28.242:3478?transport=udp',
-      'username': '1509020397:helloword',
-      'credential': '+SLiebXF1e6o+R09Peu2yteQCnY='
-    }
-    //,{'url': 'stun:stun.l.google.com:19302'},
-  ]
-};
-*/
+var pcConfig = {};
 
 // Set up audio and video regardless of what devices are present.
 var sdpConstraints = {
@@ -47,67 +35,66 @@ var sdpConstraints = {
   }
 };
 
+var socket;
+if (window["WebSocket"]) {
+      socket = new WebSocket("wss://"+document.location.host+"/websocket");
+      socket.onclose = function (evt) {
+          var item = document.createElement("div");
+          item.innerHTML = "<b>Connection closed.</b>";
+      };
+      
+      socket.onopen = function (evt) 
+      {
+        if (localStreamReady && !doOfferAlready)
+        {
+          doOfferAlready = true;
+          doOffer();
+        }
+      }
+
+      socket.onmessage = function (evt) 
+      {
+          /*
+          var messages = evt.data.split('\n');
+          for (var i = 0; i < messages.length; i++) {
+            var item = document.createElement("div");
+            item.innerText = messages[i];
+          }
+          */
+          var messages = evt.data;
+          console.log('[OnMessage]['+message.type+'] Receive from the other!', message);
+          if (message.type === 'answer' && isStarted) 
+          {
+            pc.setRemoteDescription(new RTCSessionDescription(message));
+          }
+          else if (message.type === 'candidate' ) 
+          {
+            var candidate = new RTCIceCandidate({
+                sdpMLineIndex: message.label,
+                candidate: message.candidate
+              });
+            pc.addIceCandidate(candidate);
+          } 
+          else if (message === 'bye' && isStarted) 
+          {
+            handleRemoteHangup();
+          }
+          else
+          {
+            console.log('[OnMessage]['+message.type+'] unknown msg:', message);
+          }
+      };
+} else {
+    var item = document.createElement("div");
+    item.innerHTML = "<b>Your browser does not support WebSockets.</b>";
+}
+
 /////////////////////////////////////////////
-var socket = io.connect();//这里的io对象是从哪来的？
-
-function sendMessage(message, roomid) {
-  console.log('[SEND_MSG]: ', message);
-  socket.emit('message', message, roomid);
-}
-
-function sendSelfRemindMsg(message, roomid)
+function sendMsgByWS(message)
 {
-  console.log('[SEND_SELF_REMIND]: ', message);
-  socket.emit('message_self_remind', message, roomid);
+  socket.send(message);
+  console.log('[SEND_MSG_BY_WS]: ', message);
 }
-
-function sendMsgToOthers(message, roomid)
-{
-  console.log('[SEND_MSG_TO_OTHERS]: ', message);
-    socket.emit('message_to_others', message, roomid);
-}
-////////////////////////////////////////////////
-
-var room = 'eddiexue';
-// Could prompt for room name:
-//room = prompt('Enter room name:');
-
-if (room !== '') 
-{
-  socket.emit('join', room);
-  console.log('Attempted to join room', room);
-}
-
-socket.on('created', function(room) {
-  console.log('[OnCreate] Created room ' + room, socket);
-  isInitiator = true;
-});
-
-//标识第一个用户进来了，这里log内容不一样，主要为了在浏览器Console里两个人看到不一样的内容
-socket.on('join', function (room){
-  if( isInitiator )
-  {
-    console.log('[OnJoin] Another peer made a request to join room ' + room);
-    console.log('[OnJoin] This peer is the initiator of room ' + room + '!');
-  }
-  isChannelReady = true;
-});
-
-//人齐了，可以开工了
-socket.on('ready', function(room, pccfg) {
-  pcConfig = pccfg;
-  isChannelReady = true;
-  console.log('[OnReady] Signal channel is ready for room: ' + room);
-  maybeStart();
-});
-
-socket.on('full', function(room) {
-  console.log('[OnFull] Room ' + room + ' is full');
-});
-
-socket.on('log', function(array) {
-  console.log.apply(console, array);
-});
 
 ////////////////////////////////////////////////////
 
@@ -127,85 +114,31 @@ function gotStream(stream)
 {
   localVideo.src = window.URL.createObjectURL(stream);
   localStream = stream;
-  if (isInitiator) {
-    maybeStart();
-  }
-}
+  createPeerConnection();
+  pc.addStream(localStream);
 
-function maybeStart() 
-{
-  console.log('>>>>>> maybeStart() '+ 'isStarted?'+isStarted +', localStream?'+(typeof localStream)+', isChannelReady?'+isChannelReady);
-
-  if (!isStarted && typeof localStream !== 'undefined' && isChannelReady) 
+  localStreamReady = true
+  //通道准备好了再doOffer
+  if( socket.readyState === 1 && !doOfferAlready) // 1=OPEN, 连接已开启并准备好进行通信。
   {
-    createPeerConnection();
-    pc.addStream(localStream);
-    isStarted = true;
-    if (isInitiator) 
-    {
-      //这个动作很重要，分别是本地筛选candidate，以及发送offer信令给到对方
-      doOffer();
-    }
+    doOfferAlready = true;
+    doOffer();
   }
 }
 
+//浏览器关闭动作
 window.onbeforeunload = function() 
 {
-  sendMsgToOthers('bye', room);
+  socket.close();
+  console.log('[OnBeforeUnload] close()');
 };
-
-/////////////////////////////////////////////////////////
-
-//到这里进房间完成，信令通信告一段落，开始真正音视频操作
-socket.on('message', function(message) 
-{
-  console.log('[OnMessage]['+message.type+'] Receive from the other!', message);
-  
-  if (message.type === 'offer') 
-  {
-    if (!isInitiator && !isStarted) 
-    {
-      maybeStart();
-    }
-    pc.setRemoteDescription(new RTCSessionDescription(message));
-    doAnswer();
-  } 
-  else if (message.type === 'answer' && isStarted) 
-  {
-    pc.setRemoteDescription(new RTCSessionDescription(message));
-  } 
-  else if (message.type === 'candidate' ) 
-  {
-    if( isStarted )
-    {
-      var candidate = new RTCIceCandidate({
-        sdpMLineIndex: message.label,
-        candidate: message.candidate
-      });
-      pc.addIceCandidate(candidate);
-    }
-    else
-    {
-      console.log('[OnMessage]['+message.type+'] not start ?!!!');
-    }
-  } 
-  else if (message === 'bye' && isStarted) 
-  {
-    handleRemoteHangup();
-  }
-  else
-  {
-    console.log('[OnMessage]['+message.type+'] unknown msg:', message);
-  }
-  
-});
 
 /////////////////////////////////////////////////////////
 
 function createPeerConnection() 
 {
   try {
-    pc = new RTCPeerConnection(pcConfig);
+    pc = new RTCPeerConnection();
     pc.onicecandidate = handleIceCandidate;
     pc.onaddstream = handleRemoteStreamAdded;
     pc.onremovestream = handleRemoteStreamRemoved;
@@ -247,13 +180,12 @@ function handleIceCandidate(event)
     }
 
     console.log('>>>>>> handleIceCandidate(event) selected a '+ candidateType+' candidate and send to the other');
-    sendMsgToOthers({
+    sendMsgByWS({
       type: 'candidate',
       label: event.candidate.sdpMLineIndex,
       id: event.candidate.sdpMid,
       candidate: event.candidate.candidate
-    }, room);
-
+    });
   } 
   else {
     console.log('>>>>>> handleIceCandidate(event) End of candidates.');
@@ -293,7 +225,7 @@ function setLocalAndSendMessage(sessionDescription)
   sessionDescription.sdp = preferH264(sessionDescription.sdp);
   //console.log('????? after=', sessionDescription.sdp)
   pc.setLocalDescription(sessionDescription);
-  sendMsgToOthers(sessionDescription, room);
+  sendMsgByWS(sessionDescription);
 }
 
 function handleCreateOfferError(event) {
@@ -308,17 +240,15 @@ function onCreateSessionDescriptionError(error) {
 function hangup() {
   console.log('>>>>>> Hanging up.');
   stop();
-  sendMsgToOthers('bye', room);
+  sendMsgByWS('bye');
 }
 
 function handleRemoteHangup() {
   console.log('>>>>>> handleRemoteHangup(): Session terminated.');
   stop();
-  isInitiator = false;
 }
 
 function stop() {
-  isStarted = false;
   // isAudioMuted = false;
   // isVideoMuted = false;
   pc.close();
