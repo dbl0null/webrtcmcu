@@ -29,7 +29,11 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: maxMessageSize,
 }
 
-type WebrtcMessage struct {
+type webrtcRecognizer struct {
+	Type string `json:"type"`
+}
+
+type messageOffer struct {
 	Type string `json:"type"`
 	Sdp  string `json:"sdp"`
 }
@@ -45,13 +49,25 @@ type PeerGhost struct {
 
 //peerMsgHandler 处理从Browser那边传过来的数据
 func (ghost *PeerGhost) peerMsgHandler(jsonMessage []byte) {
-	var msg WebrtcMessage
-	json.Unmarshal(jsonMessage, &msg)
+	var recognizer webrtcRecognizer
+	//先解析一次，把消息类型解析出来
+	jsonErr := json.Unmarshal(jsonMessage, &recognizer)
+	if jsonErr != nil {
+		log.Printf("peerMsgHandler()| Can't recognize msg type. %v", jsonErr)
+	}
 
-	switch msg.Type {
+	switch recognizer.Type {
 	case "offer":
+		var msg messageOffer
+		//根据消息类型，解析不同的消息结构
+		jsonErr = json.Unmarshal(jsonMessage, msg)
+		if jsonErr != nil {
+			log.Printf("peerMsgHandler()| Can't parse msg content. %v", jsonErr)
+		}
+
 		msg.Type = "answer"
 		msg.Sdp = ghostAnswerSdp
+		//生成一个新的Offer消息返回给浏览器
 		jsonBytes, jsonErr := json.Marshal(msg)
 		if jsonErr != nil {
 			log.Printf("peerMsgHandler()| Can't create anser msg. %v", jsonErr)
@@ -59,15 +75,14 @@ func (ghost *PeerGhost) peerMsgHandler(jsonMessage []byte) {
 			ghost.send <- jsonBytes
 		}
 	case "candidate":
-		log.Println("peerMsgHandler()| receive candidate:", msg)
+		log.Println("peerMsgHandler()| receive candidate:")
 	default:
-		log.Println("peerMsgHandler()| Unknown msgtype:", msg.Type)
+		log.Println("peerMsgHandler()| Unknown msgtype:")
 	}
 }
 
 //从头Browser->WSClient通道读数据
 func (ghost *PeerGhost) readPump() {
-	log.Println(">>>readPump()")
 	defer func() {
 		ghost.conn.Close()
 	}()
@@ -97,7 +112,6 @@ func (ghost *PeerGhost) readPump() {
 
 //writePump 从PeerGhost的send管道里面取数据发给Browser端
 func (ghost *PeerGhost) writePump() {
-	log.Println(">>>writePump()")
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()

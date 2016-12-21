@@ -1,18 +1,5 @@
 'use strict';
 
-/**
- * 整体流程大致描述如下：
- * 1、第一个用户通过join信令创建房间，收到server下发的push消息（created），设置自身状态（isInitiator=true），打开摄像头（getUserMedia、maybeStart）
- * 2、第二个用户通过join信令进入房间，收到server下发的push消息（join），打开摄像头（getUserMedia、maybeStart）
- * 3、Server给二人下发push消息（ready），两边各自设置通道准备完毕（isChannelReady = true;），开始启动后续动作（maybeStart）
- * * 注意：两个客户端打开摄像头(getUserMedia)与信令通道准备是并行操作，且必须二者都完成才能进行下一步，所以打开摄像头结束和通道准备就绪之后都要尝试maybeStart
- * 4、第一个用户向第二个用户发offer信令（SDP）
- * 5、第二个用户向第一个用户回answer信令（SDP）
- * 6、第二个用户向第一个用户发送Candidate
- * 7、第一个用户向第二个用户发送Caddidate
- * 8、开始音视频通话
- * * 注意：这里私底下就是STUN过程和TURN过程，用wireshark抓包可以看到细节
- */
 var localStreamReady = false;
 var doOfferAlready = false
 
@@ -89,8 +76,7 @@ function sendMsgByWS(message)
 {
   //http://stackoverflow.com/questions/13028604/sending-a-javascript-object-through-websockets-with-faye
   //统一发送json格式的数据，用type字段标识当命令号
-  //webrtc定义了：offer、answer、candidate
-  //我们自定义类型：
+  //webrtc定义了：offer、answer、candidate，我们也可以自定义类型
   socket.send(JSON.stringify(message));
   console.log('[SEND_MSG_BY_WS]: ', message);
 }
@@ -233,18 +219,6 @@ function handleCreateOfferError(event) {
 
 function onCreateSessionDescriptionError(error) {
   console.trace('Failed to create session description: ' + error.toString());
-}
-
-//主动挂断？本例中无此功能
-function hangup() {
-  console.log('>>>>>> Hanging up.');
-  stop();
-  sendMsgByWS('bye');
-}
-
-function handleRemoteHangup() {
-  console.log('>>>>>> handleRemoteHangup(): Session terminated.');
-  stop();
 }
 
 function stop() {
@@ -442,7 +416,7 @@ function preferOpus(sdp) {
     if (sdpLines[i].search('opus/48000') !== -1) {
       var opusPayload = extractSdp(sdpLines[i], /:(\d+) opus\/48000/i);
       if (opusPayload) {
-        sdpLines[mLineIndex] = setDefaultCodec(sdpLines[mLineIndex],
+        sdpLines[mLineIndex] = setDefaultAudioCodec(sdpLines[mLineIndex],
           opusPayload);
       }
       break;
@@ -456,13 +430,8 @@ function preferOpus(sdp) {
   return sdp;
 }
 
-function extractSdp(sdpLine, pattern) {
-  var result = sdpLine.match(pattern);
-  return result && result.length === 2 ? result[1] : null;
-}
-
 // Set the selected codec to the first in m line.
-function setDefaultCodec(mLine, payload) {
+function setDefaultAudioCodec(mLine, payload) {
   var elements = mLine.split(' ');
   var newLine = [];
   var index = 0;
