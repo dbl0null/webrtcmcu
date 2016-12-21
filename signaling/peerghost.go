@@ -1,10 +1,11 @@
 package signaling
 
 import (
-	"bytes"
 	"log"
 	"net/http"
 	"time"
+
+	"encoding/json"
 
 	"github.com/gorilla/websocket"
 )
@@ -20,17 +21,16 @@ const (
 	pingPeriod = (pongWait * 9) / 10
 
 	// Maximum message size allowed from peer.
-	maxMessageSize = 512
-)
-
-var (
-	newline = []byte{'\n'}
-	space   = []byte{' '}
+	maxMessageSize = 10 * 1024
 )
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
+	ReadBufferSize:  maxMessageSize,
+	WriteBufferSize: maxMessageSize,
+}
+
+type WebrtcMessage struct {
+	Type, bbb string
 }
 
 // PeerGhost 伪装成Browser的PeerConnection对端
@@ -43,8 +43,10 @@ type PeerGhost struct {
 }
 
 //peerMsgHandler 处理从Browser那边传过来的数据
-func (ghost *PeerGhost) peerMsgHandler(message []byte) {
-	log.Println("peerMsgHandler()", message)
+func (ghost *PeerGhost) peerMsgHandler(jsonMessage []byte) {
+	var msg WebrtcMessage
+	json.Unmarshal(jsonMessage, &msg)
+	log.Println("peerMsgHandler()", msg.Type)
 }
 
 //从头Browser->WSClient通道读数据
@@ -60,19 +62,19 @@ func (ghost *PeerGhost) readPump() {
 		messageType, message, err := ghost.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway) {
-				log.Printf("websocket error: %v", err)
+				log.Printf("readPump|Websocket UnexpectedCloseError: %v", err)
+			} else {
+				log.Printf("readPump|Websocket Error: %v", err)
 			}
 			break
 		}
 
-		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
 		if messageType == websocket.TextMessage {
-			txtMsg := string(message)
-			log.Printf(txtMsg)
+			ghost.peerMsgHandler(message)
 		} else if messageType == websocket.BinaryMessage {
-			log.Printf("binary message！？？")
+			log.Println("Not support BinaryMessage(2) for now!")
 		} else {
-			log.Printf("other message！？？", messageType)
+			log.Printf("Other message?! %v", message)
 		}
 	}
 }
@@ -104,7 +106,6 @@ func (ghost *PeerGhost) writePump() {
 			// Add queued chat messages to the current websocket message.
 			n := len(ghost.send)
 			for i := 0; i < n; i++ {
-				w.Write(newline)
 				w.Write(<-ghost.send)
 			}
 

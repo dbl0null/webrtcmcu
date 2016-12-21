@@ -21,9 +21,9 @@ var pc;
 var remoteStream;
 
 //只需要跨网直连模式
-var wantHostMode      = false;
+var wantHostMode      = true;
 var wantReflexiveMode = true;
-var wantRelayMode     = false;
+var wantRelayMode     = true;
 
 var pcConfig = {};
 
@@ -92,7 +92,11 @@ if (window["WebSocket"]) {
 /////////////////////////////////////////////
 function sendMsgByWS(message)
 {
-  socket.send(message);
+  //http://stackoverflow.com/questions/13028604/sending-a-javascript-object-through-websockets-with-faye
+  //统一发送json格式的数据，用type字段标识当命令号
+  //webrtc定义了：offer、answer、candidate
+  //我们自定义类型：
+  socket.send(JSON.stringify(message));
   console.log('[SEND_MSG_BY_WS]: ', message);
 }
 
