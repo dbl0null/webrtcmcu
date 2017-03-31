@@ -21,6 +21,7 @@ func main() {
 
 	//创建https文件服务
 	http.Handle("/", http.FileServer(http.Dir("browser")))
+
 	//// One can use generate_cert.go in crypto/tls to generate cert.pem and key.pem.
 	err := http.ListenAndServeTLS(":8888", "signaling/cert/certificate.pem", "signaling/cert/privatekey.pem", nil)
 	if err != nil {
@@ -28,10 +29,4 @@ func main() {
 		os.Exit(1)
 	}
 	//代码不会执行到这里来！！
-}
-
-//暂时没用先放着
-func httpRequestHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte("Nothing for now.\n"))
 }

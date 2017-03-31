@@ -66,7 +66,8 @@ func (ghost *PeerGhost) peerMsgHandler(jsonMessage []byte) {
 		}
 
 		msg.Type = "answer"
-		msg.Sdp = ghostAnswerSdp
+		//@TODO 对SDP进行针对性的修改
+
 		//生成一个新的Offer消息返回给浏览器
 		jsonBytes, jsonErr := json.Marshal(msg)
 		if jsonErr != nil {

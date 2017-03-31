@@ -8,9 +8,9 @@ var pc;
 var remoteStream;
 
 //只需要跨网直连模式
-var wantHostMode      = true;
+var wantHostMode      = false;
 var wantReflexiveMode = true;
-var wantRelayMode     = true;
+var wantRelayMode     = false;
 
 var pcConfig = {};
 
