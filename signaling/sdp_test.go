@@ -1,6 +1,6 @@
 /**
  *  go test -run="Sdp|Bufio" -v
- *  go test -v -test.run TestProcessSdp
+ *  go test -v -test.run TestProcessExampleSdp
  *	go test sdp.go sdp_test.go -v
  */
 package signaling
@@ -13,9 +13,46 @@ import (
 	"testing"
 )
 
-func TestProcessSdp(t *testing.T) {
+func TestProcessExampleSdp(t *testing.T) {
 	var sdp SdpInfo
-	sdp.processSdp(exampleFromWeb, "other")
+	sdp.InitWithSdp(exampleFromWeb, "other")
+
+	if sdp.GetUsername(AUDIO_TYPE) != "Oyef7uvBlwafI3hT" {
+		t.Errorf("sdp.GetUsername(AUDIO_TYPE)=%s want Oyef7uvBlwafI3hT", sdp.GetUsername(AUDIO_TYPE))
+	}
+
+	if !sdp.isBundle {
+		t.Errorf("sdp.isBundle=%t want true", sdp.isBundle)
+	}
+
+	if len(sdp.bundleTags) != 2 {
+		t.Errorf("sdp.bundleTags=%v want len=2 slice", sdp.bundleTags)
+	}
+
+	if sdp.profile != SAVPF {
+		t.Errorf("sdp.profile=%v want len=SAVPF(1)", sdp.profile)
+	}
+
+	if len(sdp.candidateVector) != 12 {
+		t.Error("len(sdp.candidateVector)=%d want 12\n")
+	}
+
+	if len(sdp.payloadParsedMap) != 15 {
+		t.Error("len(sdp.payloadParsedMap)=%d want 15\n")
+	}
+
+	if sdp.payloadParsedMap[111].formatParameters["minptime"] != "10" {
+		t.Error("sdp.payloadParsedMap[111].formatParameters[\"minptime\"]=%s want 10\n", sdp.payloadParsedMap[111].formatParameters["minptime"])
+	}
+
+	//"ccm fir", "nack", "nack pli", "goog-remb"
+	if len(sdp.payloadParsedMap[100].feedbackTypes) != 4 {
+		t.Error("len(sdp.payloadParsedMap[100].feedbackTypes)=%s want 4(ccm fir, nack, nack pli, goog-remb)", sdp.payloadParsedMap[100].feedbackTypes)
+	}
+
+	//fmt.Println(sdp.sdpRawContent)
+	//fmt.Println("+++++++++++++++")
+	//fmt.Println(sdp.CreateSdp())
 }
 
 func TestBufio(t *testing.T) {
@@ -40,6 +77,25 @@ func TestStringUtil(t *testing.T) {
 	fmt.Printf("%q\n", strings.Split("a man a plan a canal panama", "a "))
 	fmt.Printf("%q\n", strings.Split(" xyz ", ""))
 	fmt.Printf("%q\n", strings.Split("", "Bernardo O'Higgins"))
+	fmt.Printf("%q, len=%d\n", strings.Split("1 ", " "), len(strings.Split("1 ", " ")))
+	var line = "a=fingerprint:sha-256 49:66:12:17:0D:1C:91:AE:57:4C:C6:36:DD:D5:97:D2:7D:62:C9:9A:7F:B9:A3:F4:70:03:E7:43:91:73:23:5E"
+	fmt.Printf("%q\n", strings.Split(strings.Split(line, "a=fingerprint:")[1], " "))
+
+	mapTest := make(map[string][]string)
+	mapTest["bob"] = []string{"1", "2"}
+	mapTest["lily"] = []string{"3", "4"}
+	tempVar := mapTest["bob"]
+	tempVar = append(tempVar, "5")
+	fmt.Printf("tempVar=%q, mapTest[bob]=%q\n", tempVar, mapTest["bob"])
+
+	type TestStruct struct {
+		fieldA int
+		fieldB int
+	}
+
+	strTestMap := make(map[int]*TestStruct)
+	strTestMap[0] = new(TestStruct)
+	strTestMap[0].fieldA = 3 ////这个时候只能用结构体指针？不是指针就报错
 }
 
 var ghostAnswerSdp = `v=0
@@ -257,5 +313,4 @@ a=ssrc:2231627014 msid:lgsCFqt9kN2fVKw5wg3NKqGdATQoltEwOdMS daed9400-d0dd-4db3-b
 a=ssrc:2231627014 mslabel:lgsCFqt9kN2fVKw5wg3NKqGdATQoltEwOdMS
 a=ssrc:2231627014 label:daed9400-d0dd-4db3-b949-422499e96e2d
 a=ssrc:632943048 cname:4TOk42mSjXCkVIa6
-a=ssrc:632943048 msid:lgsCFqt9kN2fVKw5wg3NKqGdATQoltEwOdMS daed9400-d0dd-4db3-b949-422499e96e2d
-`
+a=ssrc:632943048 msid:lgsCFqt9kN2fVKw5wg3NKqGdATQoltEwOdMS daed9400-d0dd-4db3-b949-422499e96e2d`
