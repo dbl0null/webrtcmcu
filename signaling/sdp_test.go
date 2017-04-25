@@ -1,6 +1,6 @@
 /**
  *  go test -run="Sdp|Bufio" -v
- *  go test -v -test.run TestProcessExampleSdp
+ *  go test -v -test.run TestProcessExampleCandSdp
  *	go test sdp.go sdp_test.go -v
  */
 package signaling
@@ -13,9 +13,39 @@ import (
 	"testing"
 )
 
-func TestProcessExampleSdp(t *testing.T) {
+func TestProcessExampleOfferSdp(t *testing.T) {
 	var sdp SdpInfo
-	sdp.InitWithSdp(exampleFromWeb, "other")
+	sdp.InitWithSdp(exampleOfferFromWeb, "other")
+
+	if sdp.profile != SAVPF {
+		t.Errorf("sdp.profile=%v want len=SAVPF(1)", sdp.profile)
+	}
+
+	if len(sdp.candidateVector) != 12 {
+		t.Error("len(sdp.candidateVector)=%d want 12\n")
+	}
+
+	if len(sdp.payloadParsedMap) != 15 {
+		t.Error("len(sdp.payloadParsedMap)=%d want 15\n")
+	}
+
+	if sdp.payloadParsedMap[111].formatParameters["minptime"] != "10" {
+		t.Error("sdp.payloadParsedMap[111].formatParameters[\"minptime\"]=%s want 10\n", sdp.payloadParsedMap[111].formatParameters["minptime"])
+	}
+
+	//"ccm fir", "nack", "nack pli", "goog-remb"
+	if len(sdp.payloadParsedMap[100].feedbackTypes) != 4 {
+		t.Error("len(sdp.payloadParsedMap[100].feedbackTypes)=%s want 4(ccm fir, nack, nack pli, goog-remb)", sdp.payloadParsedMap[100].feedbackTypes)
+	}
+
+	//fmt.Println(sdp.sdpRawContent)
+	//fmt.Println("+++++++++++++++")
+	//fmt.Println(sdp.CreateSdp())
+}
+
+func TestProcessExampleCandSdp(t *testing.T) {
+	var sdp SdpInfo
+	sdp.InitWithSdp(exampleCandFromWeb, "other")
 
 	if sdp.GetUsername(AUDIO_TYPE) != "Oyef7uvBlwafI3hT" {
 		t.Errorf("sdp.GetUsername(AUDIO_TYPE)=%s want Oyef7uvBlwafI3hT", sdp.GetUsername(AUDIO_TYPE))
@@ -230,7 +260,7 @@ a=ssrc:4056169427 msid:PmjlFaJdelMzWQvkizKtQ2EMAQtBRHOsQbPK 469d252e-1a49-4c0e-9
 a=ssrc:4056169427 mslabel:PmjlFaJdelMzWQvkizKtQ2EMAQtBRHOsQbPK
 a=ssrc:4056169427 label:469d252e-1a49-4c0e-9c3e-05e4411e0343`
 
-var exampleFromWeb = `v=0
+var exampleCandFromWeb = `v=0
 o=- 4611731400430051336 2 IN IP4 127.0.0.1
 s=-
 t=0 0
@@ -314,3 +344,163 @@ a=ssrc:2231627014 mslabel:lgsCFqt9kN2fVKw5wg3NKqGdATQoltEwOdMS
 a=ssrc:2231627014 label:daed9400-d0dd-4db3-b949-422499e96e2d
 a=ssrc:632943048 cname:4TOk42mSjXCkVIa6
 a=ssrc:632943048 msid:lgsCFqt9kN2fVKw5wg3NKqGdATQoltEwOdMS daed9400-d0dd-4db3-b949-422499e96e2d`
+
+var exampleOfferFromWeb = `v=0
+o=- 4532741635580733248 2 IN IP4 127.0.0.1
+s=-
+t=0 0
+a=group:BUNDLE audio video
+a=msid-semantic: WMS 7YXu7MiNmzxl5T27u72Htjsj6NMeY2t1zCBh
+m=audio 9 UDP/TLS/RTP/SAVPF 111 103 104 9 0 8 106 105 13 110 112 113 126
+c=IN IP4 0.0.0.0
+a=rtcp:9 IN IP4 0.0.0.0
+a=ice-ufrag:ZDk7
+a=ice-pwd:hQimQa97Rvu6tvr0Gv2xJ8Rf
+a=fingerprint:sha-256 01:F6:AA:2A:A0:B2:68:D0:57:24:CA:C7:E9:10:B1:EA:1A:C8:36:BA:38:F6:78:38:33:59:5F:29:77:DF:6F:D6
+a=setup:actpass
+a=mid:audio
+a=extmap:1 urn:ietf:params:rtp-hdrext:ssrc-audio-level
+a=sendrecv
+a=rtcp-mux
+a=rtpmap:111 opus/48000/2
+a=rtcp-fb:111 transport-cc
+a=fmtp:111 minptime=10;useinbandfec=1
+a=rtpmap:103 ISAC/16000
+a=rtpmap:104 ISAC/32000
+a=rtpmap:9 G722/8000
+a=rtpmap:0 PCMU/8000
+a=rtpmap:8 PCMA/8000
+a=rtpmap:106 CN/32000
+a=rtpmap:105 CN/16000
+a=rtpmap:13 CN/8000
+a=rtpmap:110 telephone-event/48000
+a=rtpmap:112 telephone-event/32000
+a=rtpmap:113 telephone-event/16000
+a=rtpmap:126 telephone-event/8000
+a=ssrc:496328129 cname:gCvUj+TSTVedqbGD
+a=ssrc:496328129 msid:7YXu7MiNmzxl5T27u72Htjsj6NMeY2t1zCBh 405d4c51-84cf-4734-a563-f6f86108f06c
+a=ssrc:496328129 mslabel:7YXu7MiNmzxl5T27u72Htjsj6NMeY2t1zCBh
+a=ssrc:496328129 label:405d4c51-84cf-4734-a563-f6f86108f06c
+m=video 9 UDP/TLS/RTP/SAVPF 96 98 100 102 127 97 99 101 125
+c=IN IP4 0.0.0.0
+a=rtcp:9 IN IP4 0.0.0.0
+a=ice-ufrag:ZDk7
+a=ice-pwd:hQimQa97Rvu6tvr0Gv2xJ8Rf
+a=fingerprint:sha-256 01:F6:AA:2A:A0:B2:68:D0:57:24:CA:C7:E9:10:B1:EA:1A:C8:36:BA:38:F6:78:38:33:59:5F:29:77:DF:6F:D6
+a=setup:actpass
+a=mid:video
+a=extmap:2 urn:ietf:params:rtp-hdrext:toffset
+a=extmap:3 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time
+a=extmap:4 urn:3gpp:video-orientation
+a=extmap:5 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01
+a=extmap:6 http://www.webrtc.org/experiments/rtp-hdrext/playout-delay
+a=sendrecv
+a=rtcp-mux
+a=rtcp-rsize
+a=rtpmap:96 VP8/90000
+a=rtcp-fb:96 ccm fir
+a=rtcp-fb:96 nack
+a=rtcp-fb:96 nack pli
+a=rtcp-fb:96 goog-remb
+a=rtcp-fb:96 transport-cc
+a=rtpmap:98 VP9/90000
+a=rtcp-fb:98 ccm fir
+a=rtcp-fb:98 nack
+a=rtcp-fb:98 nack pli
+a=rtcp-fb:98 goog-remb
+a=rtcp-fb:98 transport-cc
+a=rtpmap:100 H264/90000
+a=rtcp-fb:100 ccm fir
+a=rtcp-fb:100 nack
+a=rtcp-fb:100 nack pli
+a=rtcp-fb:100 goog-remb
+a=rtcp-fb:100 transport-cc
+a=fmtp:100 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f
+a=rtpmap:102 red/90000
+a=rtpmap:127 ulpfec/90000
+a=rtpmap:97 rtx/90000
+a=fmtp:97 apt=96
+a=rtpmap:99 rtx/90000
+a=fmtp:99 apt=98
+a=rtpmap:101 rtx/90000
+a=fmtp:101 apt=100
+a=rtpmap:125 rtx/90000
+a=fmtp:125 apt=102
+a=ssrc-group:FID 3975000286 954014112
+a=ssrc:3975000286 cname:gCvUj+TSTVedqbGD
+a=ssrc:3975000286 msid:7YXu7MiNmzxl5T27u72Htjsj6NMeY2t1zCBh f74aa3a1-3822-43fa-b6b6-b9c4ef170a61
+a=ssrc:3975000286 mslabel:7YXu7MiNmzxl5T27u72Htjsj6NMeY2t1zCBh
+a=ssrc:3975000286 label:f74aa3a1-3822-43fa-b6b6-b9c4ef170a61
+a=ssrc:954014112 cname:gCvUj+TSTVedqbGD
+a=ssrc:954014112 msid:7YXu7MiNmzxl5T27u72Htjsj6NMeY2t1zCBh f74aa3a1-3822-43fa-b6b6-b9c4ef170a61
+a=ssrc:954014112 mslabel:7YXu7MiNmzxl5T27u72Htjsj6NMeY2t1zCBh
+a=ssrc:954014112 label:f74aa3a1-3822-43fa-b6b6-b9c4ef170a61`
+
+//这样就可以了
+//onTrack的时候 会有2个MediaStream  id 分别为 5Y2wZK8nANNAoVw6dSAHVjNxrD1ObBM2kBPV  和ySXjlPZzTbt4jVaDXa5fDglwXanM4mG51fpM。。。和relay交换sdp的时候  把这两个id带上就好了
+var multiMediaSDP = `v=0
+o=- 7595655801978680453 2 IN IP4 112.90.139.105
+s=-
+t=0 0
+a=ice-lite
+a=group:BUNDLE audio video
+a=msid-semantic: WMS 5Y2wZK8nANNAoVw6dSAHVjNxrD1ObBM2kBPV ySXjlPZzTbt4jVaDXa5fDglwXanM4mG51fpM
+m=audio 9 UDP/TLS/RTP/SAVPF 111 103 104 9 0 8 126
+c=IN IP4 0.0.0.0
+a=rtcp:9 IN IP4 0.0.0.0
+a=ice-ufrag:d268
+a=ice-pwd:49cedeec5368e8ca235bf608
+a=fingerprint:sha-256 B1:13:89:5E:BC:57:55:A9:33:98:A1:1A:14:37:10:AB:FE:9D:DE:AC:A7:F7:8A:B3:A4:DA:78:5D:80:C7:40:0E
+a=setup:active
+a=mid:audio
+a=extmap:1 urn:ietf:params:rtp-hdrext:ssrc-audio-level
+a=sendrecv
+a=rtcp-mux
+a=rtpmap:111 opus/48000/2
+a=rtcp-fb:111 transport-cc
+a=fmtp:111 minptime=10;useinbandfec=1
+a=rtpmap:103 ISAC/16000
+a=rtpmap:104 ISAC/32000
+a=rtpmap:9 G722/8000
+a=rtpmap:0 PCMU/8000
+a=rtpmap:8 PCMA/8000
+a=rtpmap:126 telephone-event/8000
+a=ssrc:2450880213 cname:YZcxBwerFFm6GH69
+a=ssrc:2450880213 msid:5Y2wZK8nANNAoVw6dSAHVjNxrD1ObBM2kBPV 128f4fa0-81dd-4c3a-bbcd-22e71e29d178
+a=ssrc:2450880213 mslabel:5Y2wZK8nANNAoVw6dSAHVjNxrD1ObBM2kBPV
+a=ssrc:2450880213 label:128f4fa0-81dd-4c3a-bbcd-22e71e29d178
+a=ssrc:2450880214 cname:YZcxBwerFFm6GH69
+a=ssrc:2450880214 msid:ySXjlPZzTbt4jVaDXa5fDglwXanM4mG51fpM 9926c917-6b47-4615-91fe-55e8c97d343d
+a=ssrc:2450880214 mslabel:ySXjlPZzTbt4jVaDXa5fDglwXanM4mG51fpM
+a=ssrc:2450880214 label:9926c917-6b47-4615-91fe-55e8c97d343d
+m=video 9 UDP/TLS/RTP/SAVPF 100 101 107 116 117 96 97 99 98
+c=IN IP4 0.0.0.0
+a=rtcp:9 IN IP4 0.0.0.0
+a=ice-ufrag:d268
+a=ice-pwd:49cedeec5368e8ca235bf608
+a=fingerprint:sha-256 B1:13:89:5E:BC:57:55:A9:33:98:A1:1A:14:37:10:AB:FE:9D:DE:AC:A7:F7:8A:B3:A4:DA:78:5D:80:C7:40:0E
+a=setup:active
+a=mid:video
+a=extmap:2 urn:ietf:params:rtp-hdrext:toffset
+a=extmap:3 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time
+a=extmap:4 urn:3gpp:video-orientation
+a=extmap:5 http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01
+a=extmap:6 http://www.webrtc.org/experiments/rtp-hdrext/playout-delay
+a=sendrecv
+a=rtcp-mux
+a=rtcp-rsize
+a=rtpmap:XXX H264/90000
+a=rtcp-fb:XXX ccm fir
+a=rtcp-fb:XXX nack
+a=rtcp-fb:XXX nack pli
+a=rtcp-fb:XXX goog-remb
+a=rtcp-fb:XXX transport-cc
+a=fmtp:XXX level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f
+a=ssrc:2307113867 cname:YZcxBwerFFm6GH69
+a=ssrc:2307113867 msid:5Y2wZK8nANNAoVw6dSAHVjNxrD1ObBM2kBPV 4be440da-64ef-4936-946c-b6799bfaaa60
+a=ssrc:2307113867 mslabel:5Y2wZK8nANNAoVw6dSAHVjNxrD1ObBM2kBPV
+a=ssrc:2307113867 label:4be440da-64ef-4936-946c-b6799bfaaa60
+a=ssrc:2307113868 cname:YZcxBwerFFm6GH69
+a=ssrc:2307113868 msid:ySXjlPZzTbt4jVaDXa5fDglwXanM4mG51fpM 9c5b834c-ce97-42e5-8753-b401079dedb2
+a=ssrc:2307113868 mslabel:ySXjlPZzTbt4jVaDXa5fDglwXanM4mG51fpM
+a=ssrc:2307113868 label:9c5b834c-ce97-42e5-8753-b401079dedb2`

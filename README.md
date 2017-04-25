@@ -19,3 +19,9 @@ If you get `"could not launch process: could not fork/exec"`, you need to try in
  ```   
  $ sudo security delete-certificate -t -c dlv-cert /Library/Keychains/System.keychain
  ```
+
+# 相关依赖
+
+## Go的WebSocket支持库
+github.com/gorilla/websocket
+

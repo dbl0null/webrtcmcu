@@ -3,20 +3,18 @@ package main
 import (
 	"log"
 	"net/http"
-
-	"webrtcmcu/signaling"
-
 	"os"
-
-	_ "github.com/gorilla/websocket"
+	"webrtcmcu/room"
+	"webrtcmcu/signaling"
 )
 
 func main() {
 	log.Println("Starting serivces...")
 
 	//创建websocket服务
+	roomMgr := room.NewRoomMgr()
 	http.HandleFunc("/websocket", func(w http.ResponseWriter, r *http.Request) {
-		signaling.ServeWebSocket(w, r)
+		signaling.ServeWebSocket(roomMgr, w, r)
 	})
 
 	//创建https文件服务

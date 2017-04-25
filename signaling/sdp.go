@@ -283,13 +283,19 @@ func (si *SdpInfo) CreateSdp() string {
 				} else {
 					strBuf.WriteString(fmt.Sprintf("a=rtpmap:%d %s/%d\n", aRtpMap.payloadType, aRtpMap.encodingName, aRtpMap.clockRate))
 				}
-			}
 
-			for fmtKey, fmtVal := range aRtpMap.formatParameters {
-				if fmtKey != "none" {
-					strBuf.WriteString(fmt.Sprintf("a=fmtp:%d %s=%s\n", aRtpMap.payloadType, fmtKey, fmtVal))
-				} else {
-					strBuf.WriteString(fmt.Sprintf("a=fmtp:%d %s\n", aRtpMap.payloadType, fmtVal))
+				if len(aRtpMap.feedbackTypes) > 0 {
+					for i := 0; i < len(aRtpMap.feedbackTypes); i++ {
+						strBuf.WriteString(fmt.Sprintf("a=rtcp-fb:%d %s\n", aRtpMap.payloadType, aRtpMap.feedbackTypes[i]))
+					}
+				}
+
+				for fmtKey, fmtVal := range aRtpMap.formatParameters {
+					if fmtKey != "none" {
+						strBuf.WriteString(fmt.Sprintf("a=fmtp:%d %s=%s\n", aRtpMap.payloadType, fmtKey, fmtVal))
+					} else {
+						strBuf.WriteString(fmt.Sprintf("a=fmtp:%d %s\n", aRtpMap.payloadType, fmtVal))
+					}
 				}
 			}
 		} //end of for
@@ -837,6 +843,7 @@ func (si *SdpInfo) processSdp(sdp string, media string) bool {
 			}
 
 			fbContent := strings.Split(line, parts[0]+" ")
+
 			if len(fbContent) >= 2 {
 				mapElement, find := si.payloadParsedMap[payloadType]
 				if find {
@@ -853,6 +860,7 @@ func (si *SdpInfo) processSdp(sdp string, media string) bool {
 			}
 		} //end of isFeedback
 
+		//@TODO 对于多WMS和多SSRC的要能正确处理
 		//a=ssrc:3570614608 cname:4TOk42mSjXCkVIa6
 		//a=ssrc:3570614608 msid:lgsCFqt9kN2fVKw5wg3NKqGdATQoltEwOdMS 35429d94-5637-4686-9ecd-7d0622261ce8
 		//a=ssrc:3570614608 mslabel:lgsCFqt9kN2fVKw5wg3NKqGdATQoltEwOdMS

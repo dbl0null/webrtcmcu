@@ -5,7 +5,27 @@
 
   <title>Simple AVChatRoom</title>
   <link rel="stylesheet" href="/css/main.css" />
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" /> 
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta id="theme-color" name="theme-color" content="#ffffff">
+  <style>
+    body {
+      display: flex;
+      display: -webkit-flex;
+      flex-direction: column;
+      -webkit-flex-direction: column;
+      margin-left: 30%;
+    }
+    
+    .video-title {
+      font-size: 15px;
+      margin-top: 0px;
+      margin-bottom: 0px;
+    }
+    
+    .start-video {
+      margin-top: 10px;
+    }
+  </style>
 </head>
 
 <body>
@@ -15,6 +35,16 @@
   <div id="videos">
     <video id="localVideo" autoplay muted></video>
     <video id="remoteVideo" autoplay></video>
+  </div>
+
+  <div class="video-section">
+    <p class="video-title">请输入用户名：
+      <input type="text" id="userid" placeholder="用户名(任意字符串)">
+    </p>
+    <p class="video-title">请输入房间号：
+      <input type="text" id="roomid" placeholder="房间号(任意字符串)">
+    </p>
+    <button id="enteroom">进入房间</button>
   </div>
 
   <script src="js/adapter.js"></script>
