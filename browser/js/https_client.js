@@ -141,7 +141,7 @@ navigator.mediaDevices.getUserMedia({
 function gotLocalStream(stream) {
   localVideo.src = window.URL.createObjectURL(stream);
   localStream = stream;
-  //createPeerConnection();
+  createPeerConnection();
   pc.addStream(localStream);
   localStreamReady = true;
 }
