@@ -17,6 +17,14 @@ func TestProcessExampleOfferSdp(t *testing.T) {
 	var sdp SdpInfo
 	sdp.InitWithSdp(exampleOfferFromWeb, "other")
 
+	if sdp.h264PayloadType != 100 {
+		t.Errorf("sdp.h264 payloadtype err have(%d), want(100)", sdp.h264PayloadType)
+	}
+
+	if sdp.opusPayloadType != 111 {
+		t.Errorf("sdp.h264 payloadtype err have(%d), want(111)", sdp.opusPayloadType)
+	}
+
 	if sdp.profile != SAVPF {
 		t.Errorf("sdp.profile=%v want len=SAVPF(1)", sdp.profile)
 	}

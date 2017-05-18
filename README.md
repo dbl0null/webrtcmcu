@@ -12,7 +12,14 @@ HTTPs服务所使用的证书生成过程如下所示（由于不是权威认证
 
 这个简易的证书生成过程是参考[这里](http://blog.csdn.net/u011244942/article/details/49306777)的说明。还可以参考[点我](http://www.cnblogs.com/kyrios/p/tls-and-certificates.html)和[点我](http://cnodejs.org/topic/54745ac22804a0997d38b32d)进一步加深理解。
 
-# Visual Studio Code Debug
+# 实用工具
+
+## Chrome工具
+
+chrome://webrtc-internals
+chrome://webrtc-logs/
+
+## Visual Studio Code Debug
 
 需要安装[Delve](https://github.com/derekparker/delve/blob/master/Documentation/installation/osx/install.md)，Mac上安装有如下提示需要注意：
 If you get `"could not launch process: could not fork/exec"`, you need to try in a new terminal.When uninstalling, to remove the dlv-cert certificate, run command below. Alternatively, you may want to delete from the Keychain (with the Imported private key).

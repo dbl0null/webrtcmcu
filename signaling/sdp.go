@@ -176,10 +176,14 @@ type SdpInfo struct {
 	// 记录codec有多少个
 	videoCodecs int
 	audioCodecs int
+
+	h264PayloadType uint64
+	opusPayloadType uint64
 }
 
 func (si *SdpInfo) CreateSdp() string {
 	var strBuf bytes.Buffer
+
 	//代表一次会话的ID，随机字符串
 	msidtemp := si.generateRandom(10)
 	strBuf.WriteString("v=0\n")
@@ -205,8 +209,18 @@ func (si *SdpInfo) CreateSdp() string {
 		}
 
 		codecCounter := 0
+		// 特殊逻辑！把Opus放第一位
+		if si.opusPayloadType != 0 {
+			strBuf.WriteString(fmt.Sprintf("%d ", si.opusPayloadType))
+			codecCounter++
+		}
 		for _, v := range si.payloadParsedMap {
 			if v.mediaType == AUDIO_TYPE {
+				// 特殊逻辑！把Opus放第一位, 上面加过了，这里要跳过Opus
+				if v.payloadType == si.opusPayloadType {
+					continue
+				}
+
 				codecCounter++
 				strBuf.WriteString(fmt.Sprintf("%d", v.payloadType))
 				if codecCounter < si.audioCodecs {
@@ -320,8 +334,18 @@ func (si *SdpInfo) CreateSdp() string {
 		}
 
 		codecCounter := 0
+		// 特殊逻辑！把Opus放第一位
+		if si.h264PayloadType != 0 {
+			strBuf.WriteString(fmt.Sprintf("%d ", si.h264PayloadType))
+			codecCounter++
+		}
 		for _, v := range si.payloadParsedMap {
 			if v.mediaType == VIDEO_TYPE {
+				// 特殊逻辑！把Opus放第一位, 上面加过了，这里要跳过Opus
+				if v.payloadType == si.h264PayloadType {
+					continue
+				}
+
 				codecCounter++
 				strBuf.WriteString(fmt.Sprintf("%d", v.payloadType))
 				if codecCounter < si.videoCodecs {
@@ -746,6 +770,16 @@ func (si *SdpInfo) processSdp(sdp string, media string) bool {
 			if err != nil {
 				log.Printf("Unexpected rtpmap.payloadType(%s), oringin info=%v", parts[0], parts)
 				continue
+			}
+
+			if strings.Contains(strings.ToLower(line), "opus") {
+				si.opusPayloadType = payloadType
+				//log.Printf("SDP.addOpusPT=%s,pt=%d, si.opusPT=%d", line, payloadType, si.opusPayloadType)
+			}
+
+			if strings.Contains(strings.ToLower(line), "h264") {
+				si.h264PayloadType = payloadType
+				//log.Printf("SDP.addH264PT=%s, pt=%d, si.h264pt=%d", line, payloadType, si.h264PayloadType)
 			}
 
 			codecOptions := strings.Split(parts[1], "/")

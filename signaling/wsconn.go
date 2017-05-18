@@ -50,59 +50,63 @@ type messageEnteroom struct {
 	RoomID       string `json:"roomid"`
 	Error        string `json:"error"`
 	Participants string `json:"participants"`
+	DataChanPort int    `json:"datachanport"`
 }
 
 // WSConnWrap 伪装成Browser的PeerConnection对端
 type WSConnWrap struct {
-	// The websocket connection.
-	conn *websocket.Conn
+	// 真实WebSocket连接的指针
+	signalConn *websocket.Conn
 
-	// Buffered channel of outbound messages.
-	send chan []byte
+	// 与终端之间的数据发送和接收队列
+	dataSendQueue chan []byte
+	dataRecvQueue chan []byte
 
-	userid string
-	roomid string
+	// 指向UserInfo的指针
+	userInfo *room.AVUser
+
+	// 房间管理器指针
+	roomgr *room.AVRoomMgr
+
+	// 客户端IP和端口
+	clientAddr *net.TCPAddr
 }
 
-//jsonMsgHandler 处理从Browser那边传过来的数据
-func (wswrap *WSConnWrap) jsonMsgHandler(jsonMessage []byte) {
-	recognizer := webrtcRecognizer{}
-	//先解析一次，把消息类型解析出来
-	jsonErr := json.Unmarshal(jsonMessage, &recognizer)
-	if jsonErr != nil {
-		log.Printf("peerMsgHandler| Can't recognize msg type. %v", jsonErr)
-	}
-
+func (wswrap *WSConnWrap) msgHandler(recognizer webrtcRecognizer, jsonMessage []byte) {
 	switch recognizer.Type {
 	case "offer":
-		msg := messageSDP{}
+		reqMsg := messageSDP{}
 		//根据消息类型，解析不同的消息结构
-		jsonErr = json.Unmarshal(jsonMessage, &msg)
+		jsonErr := json.Unmarshal(jsonMessage, &reqMsg)
 		if jsonErr != nil {
-			log.Printf("peerMsgHandler| Can't parse msg content. %v", jsonErr)
+			log.Printf("msgHandler| Can't parse msg content. %v", jsonErr)
+			return
 		}
 
 		var offer SdpInfo
-		offer.InitWithSdp(msg.Sdp, "")
+		offer.InitWithSdp(reqMsg.Sdp, "")
+
 		//值拷贝，offer还要保留
 		answer := offer
-		//@TODO H264和Opus要拍在前面
-		msg.Sdp = answer.CreateSdp()
-		msg.Type = "answer"
+
+		//@TODO H264和Opus要排在前面
+		reqMsg.Sdp = answer.CreateSdp()
+		reqMsg.Type = "answer"
 
 		//生成一个新的Offer消息返回给浏览器
-		jsonBytes, jsonErr := json.Marshal(msg)
+		jsonBytes, jsonErr := json.Marshal(reqMsg)
 		if jsonErr != nil {
-			log.Printf("peerMsgHandler| Can't create anser msg. %v", jsonErr)
-		} else {
-			wswrap.send <- jsonBytes
+			log.Printf("msgHandler| Can't create anser msg. %v", jsonErr)
+			return
 		}
+		wswrap.dataSendQueue <- jsonBytes
+
 	case "candidate":
-		msg := messageSDP{}
+		reqMsg := messageSDP{}
 		//根据消息类型，解析不同的消息结构
-		jsonErr = json.Unmarshal(jsonMessage, &msg)
+		jsonErr := json.Unmarshal(jsonMessage, &reqMsg)
 		if jsonErr != nil {
-			log.Printf("peerMsgHandler| Can't parse msg content. %v", jsonErr)
+			log.Printf("msgHandler| Can't parse msg content. %v", jsonErr)
 		}
 		/*
 					type: 'candidate',
@@ -112,53 +116,117 @@ func (wswrap *WSConnWrap) jsonMsgHandler(jsonMessage []byte) {
 			      userid : userIDVal,
 			      roomid : roomIDVal
 		*/
-		log.Println("peerMsgHandler| receive candidate:")
+		log.Println("msgHandler| receive candidate:")
+
 	case "enteroom":
-		msg := messageEnteroom{}
+		reqMsg := messageEnteroom{}
 		//根据消息类型，解析不同的消息结构
-		jsonErr = json.Unmarshal(jsonMessage, &msg)
+		jsonErr := json.Unmarshal(jsonMessage, &reqMsg)
 		if jsonErr != nil {
-			log.Printf("peerMsgHandler| Can't parse enteroom msg. %v", jsonErr)
+			log.Printf("msgHandler| Can't parse enteroom msg. err=%v, msg=%v", jsonErr, jsonMessage)
+			answerMsg := messageEnteroom{
+				Type:  "enteroomres",
+				Error: "enteroom msg parse err:" + jsonErr.Error(),
+			}
+			jsonBytes, jsonErr := json.Marshal(answerMsg)
+			if jsonErr != nil {
+				log.Printf("msgHandler| Can't create anser msg-1. %v", jsonErr)
+				return
+			}
+			wswrap.dataSendQueue <- jsonBytes
+			return
 		}
 
-		msg.Error = ""
-		msg.Type = "enteroomres"
-		msg.Participants = "[" + msg.UserID + "]"
-		jsonBytes, jsonErr := json.Marshal(msg)
-		if jsonErr != nil {
-			log.Printf("peerMsgHandler| Can't create anser msg. %v", jsonErr)
-		} else {
-			wswrap.send <- jsonBytes
+		log.Printf("msgHandler|Enteroom. reqMsg=%v", reqMsg)
+
+		userInfo := room.AVUser{
+			RoomID:         reqMsg.RoomID,
+			UserID:         reqMsg.UserID,
+			UserSignalAddr: wswrap.signalConn.RemoteAddr().(*net.TCPAddr),
 		}
-		//@TODO create user info and add to room
+
+		//到房间管理器加入房间（房间不存在就创建一个）
+		allocPort, enterErr := wswrap.roomgr.EnterRoom(userInfo)
+
+		//进房间失败？？
+		if enterErr != nil {
+			log.Printf("msgHandler| Enter room err(%v), msg=%v", enterErr, jsonMessage)
+			answerMsg := messageEnteroom{
+				Type:  "enteroomres",
+				Error: "enteroom msg parse err:" + enterErr.Error(),
+			}
+			jsonBytes, jsonErr := json.Marshal(answerMsg)
+			if jsonErr != nil {
+				log.Printf("msgHandler| Can't create anser msg-2. %v", jsonErr)
+				return
+			}
+			wswrap.dataSendQueue <- jsonBytes
+			return
+		}
+
+		log.Printf("msgHandler|Enteroom. allocPort=%d", allocPort)
+
+		//进房间成功？给客户端回包
+		answerMsg := messageEnteroom{
+			RoomID:       reqMsg.RoomID,
+			UserID:       reqMsg.UserID,
+			DataChanPort: allocPort,
+			Type:         "enteroomres",
+		}
+
+		jsonBytes, jsonErr := json.Marshal(answerMsg)
+		if jsonErr != nil {
+			log.Printf("msgHandler| Can't create anser msg-3. %v", jsonErr)
+			return
+		}
+
+		wswrap.dataSendQueue <- jsonBytes
+		log.Printf("msgHandler|Enteroom. answer=%v", answerMsg)
+
 		//@TODO send msg to other participants
+	case "leaveroom":
+		log.Println("msgHandler| leaveroom, 页面直接关闭就退房了，暂时不搞挂断了")
 	default:
-		log.Println("peerMsgHandler| Unknown msgtype:")
+		log.Println("msgHandler| Unknown msgtype:")
+	}
+}
+
+//msgLooper 循环处理接收队列里的数据
+func (wswrap *WSConnWrap) msgLooper() {
+	for jsonMessage := range wswrap.dataRecvQueue {
+		recognizer := webrtcRecognizer{}
+		jsonErr := json.Unmarshal(jsonMessage, &recognizer)
+		if jsonErr != nil {
+			log.Printf("msgLooper| Can't recognize msg type. %v", jsonErr)
+			continue
+		}
+		wswrap.msgHandler(recognizer, jsonMessage)
 	}
 }
 
 //从头Browser->WSClient通道读数据
 func (wswrap *WSConnWrap) readPump() {
 	defer func() {
-		wswrap.conn.Close()
+		wswrap.signalConn.Close()
+		close(wswrap.dataRecvQueue)
 		//TODO 删除用户信息
 	}()
-	wswrap.conn.SetReadLimit(maxMessageSize)
-	wswrap.conn.SetReadDeadline(time.Now().Add(pongWait))
-	wswrap.conn.SetPongHandler(func(string) error { wswrap.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+	wswrap.signalConn.SetReadLimit(maxMessageSize)
+	wswrap.signalConn.SetReadDeadline(time.Now().Add(pongWait))
+	wswrap.signalConn.SetPongHandler(func(string) error { wswrap.signalConn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
-		messageType, message, err := wswrap.conn.ReadMessage()
+		messageType, message, err := wswrap.signalConn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway) {
-				log.Printf("readPump|Connection close(userid=%s, roomid=%s): err=%v", wswrap.userid, wswrap.roomid, err)
+				log.Printf("readPump|Connection lost for userinfo=%v: err=%v", wswrap.userInfo, err)
 			} else {
-				log.Printf("readPump|Connection(userid=%s, roomid=%s) Error: %v", wswrap.userid, wswrap.roomid, err)
+				log.Printf("readPump|Connection(userinfo=%v) Error: %v", wswrap.userInfo, err)
 			}
 			return
 		}
 
 		if messageType == websocket.TextMessage {
-			wswrap.jsonMsgHandler(message)
+			wswrap.dataRecvQueue <- message
 		} else if messageType == websocket.BinaryMessage {
 			log.Println("readPump|Not support BinaryMessage(2) for now!")
 			return
@@ -174,28 +242,29 @@ func (wswrap *WSConnWrap) writePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		wswrap.conn.Close()
+		wswrap.signalConn.Close()
+		close(wswrap.dataSendQueue)
 	}()
 	for {
 		select {
-		case message, ok := <-wswrap.send:
-			wswrap.conn.SetWriteDeadline(time.Now().Add(writeWait))
+		case message, ok := <-wswrap.dataSendQueue:
+			wswrap.signalConn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
 				//后台强行关闭连接
-				wswrap.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				wswrap.signalConn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
 
-			w, err := wswrap.conn.NextWriter(websocket.TextMessage)
+			w, err := wswrap.signalConn.NextWriter(websocket.TextMessage)
 			if err != nil {
 				return
 			}
 			w.Write(message)
 
-			// Add queued chat messages to the current websocket message.
-			n := len(wswrap.send)
+			// 把队列里积攒的待发送数据一起往外发
+			n := len(wswrap.dataSendQueue)
 			for i := 0; i < n; i++ {
-				w.Write(<-wswrap.send)
+				w.Write(<-wswrap.dataSendQueue)
 			}
 
 			//Close()是为了把数据刷到底层发送出去
@@ -204,8 +273,8 @@ func (wswrap *WSConnWrap) writePump() {
 				return
 			}
 		case <-ticker.C:
-			wswrap.conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if err := wswrap.conn.WriteMessage(websocket.PingMessage, []byte{}); err != nil {
+			wswrap.signalConn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err := wswrap.signalConn.WriteMessage(websocket.PingMessage, []byte{}); err != nil {
 				return
 			}
 		} // end for select
@@ -214,6 +283,7 @@ func (wswrap *WSConnWrap) writePump() {
 
 // https://github.com/gorilla/websocket
 func ServeWebSocket(rmgr *room.AVRoomMgr, w http.ResponseWriter, r *http.Request) {
+	log.Printf("ServeWebSocket(), req=%v\n", r.URL)
 	wsConnection, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("ServeWebSocket:", err)
@@ -222,11 +292,21 @@ func ServeWebSocket(rmgr *room.AVRoomMgr, w http.ResponseWriter, r *http.Request
 
 	wsAddr, ok := wsConnection.RemoteAddr().(*net.TCPAddr)
 	if !ok {
-		log.Printf("Error WebSocket request from: ", wsAddr.String())
+		log.Printf("Error WebSocket request from: %s", wsAddr.String())
 		return
 	}
 
-	ghost := &WSConnWrap{conn: wsConnection, send: make(chan []byte, 256)}
-	go ghost.writePump()
-	ghost.readPump()
+	log.Printf("ServeWebSocket() clientAddr=%v", wsAddr)
+
+	wswrap := &WSConnWrap{
+		signalConn:    wsConnection,
+		dataSendQueue: make(chan []byte, 612),
+		dataRecvQueue: make(chan []byte, 612),
+		roomgr:        rmgr,
+		clientAddr:    wsAddr,
+	}
+	go wswrap.writePump()
+	go wswrap.msgLooper()
+	log.Printf("ServeWebSocket() wsConn=%v", wswrap)
+	wswrap.readPump()
 }

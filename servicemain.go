@@ -11,8 +11,10 @@ import (
 func main() {
 	log.Println("Starting serivces...")
 
-	//创建websocket服务
 	roomMgr := room.NewRoomMgr()
+	go roomMgr.RoomService()
+
+	//创建websocket服务
 	http.HandleFunc("/websocket", func(w http.ResponseWriter, r *http.Request) {
 		signaling.ServeWebSocket(roomMgr, w, r)
 	})

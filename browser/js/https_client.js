@@ -32,9 +32,11 @@ var roomIDTxt = document.getElementById('roomid');
 
 var userIDVal = ''
 var roomIDVal = ''
+var dataChanPort = 0
 
 /////////////////////////////////////////////
 
+enterRoomButton.disabled = true;
 var socket;
 if (window["WebSocket"]) {
   socket = new WebSocket("wss://" + document.location.host + "/websocket");
@@ -75,6 +77,7 @@ if (window["WebSocket"]) {
         alert('{' + message.userid + '} enter room{' + message.roomid + '} error: ' + message.error);
       } else {
         enterRoomButton.disabled = true
+        dataChanPort = message.datachanport
         if (socket.readyState === 1 && !doOfferAlready) // 1=OPEN, 连接已开启并准备好进行通信。
         {
           doOfferAlready = true;
@@ -98,6 +101,8 @@ if (window["WebSocket"]) {
 
 /////////////////////////////////////////////
 enterRoomButton.onclick = enterRoom;
+enterRoomButton.disabled = false;
+
 function enterRoom() {
   enterRoomButton.disabled = true;
   userIDVal = userIDTxt.value;
@@ -107,10 +112,6 @@ function enterRoom() {
     userid: userIDVal,
     roomid: roomIDVal
   });
-}
-
-function startChat() {
-  //这里暂时没啥用呢
 }
 
 /////////////////////////////////////////////
