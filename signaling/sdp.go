@@ -187,7 +187,8 @@ func (si *SdpInfo) CreateSdp() string {
 	//代表一次会话的ID，随机字符串
 	msidtemp := si.generateRandom(10)
 	strBuf.WriteString("v=0\n")
-	strBuf.WriteString("o=- 0 0 IN IP4 127.0.0.1\n")
+	//strBuf.WriteString("o=- 0 0 IN IP4 127.0.0.1\n")
+	strBuf.WriteString("o=- 0 0 IN IP4 123.207.247.64\n")
 	strBuf.WriteString(fmt.Sprintf("s=%s\n", SdpIdentifier))
 	strBuf.WriteString("t=0 0\n")
 
