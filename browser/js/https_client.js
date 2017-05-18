@@ -75,6 +75,7 @@ if (window["WebSocket"]) {
       if (message.error != '') {
         enterRoomButton.disabled = false
         alert('{' + message.userid + '} enter room{' + message.roomid + '} error: ' + message.error);
+        createPeerConnection();
       } else {
         enterRoomButton.disabled = true
         dataChanPort = message.datachanport
@@ -140,7 +141,7 @@ navigator.mediaDevices.getUserMedia({
 function gotLocalStream(stream) {
   localVideo.src = window.URL.createObjectURL(stream);
   localStream = stream;
-  createPeerConnection();
+  //createPeerConnection();
   pc.addStream(localStream);
   localStreamReady = true;
 }
